@@ -1,0 +1,7 @@
+llama-index
+llama-index-llms-bedrock
+llama-index-embeddings-bedrock
+polars
+gradio
+python-dotenv
+jupyterlab
