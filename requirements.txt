@@ -1,7 +1,8 @@
+gradio
+jupyterlab
 llama-index
 llama-index-llms-bedrock
 llama-index-embeddings-bedrock
 polars
-gradio
+pydantic
 python-dotenv
-jupyterlab
