@@ -1,8 +1,10 @@
+deltalake
 gradio
 jupyterlab
 llama-index
 llama-index-llms-bedrock
 llama-index-embeddings-bedrock
 polars
+pyarrow
 pydantic
 python-dotenv
