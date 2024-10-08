@@ -11,25 +11,25 @@ S3_BUCKET_URL = "https://vcthackathon-data.s3.us-west-2.amazonaws.com"
 LOCAL_DIR_PREFIX = "data/raw"
 
 # (game-changers, vct-international, vct-challengers)
-LEAGUE = "game-changers"
+LEAGUE = "vct-challengers"
 
 # (2022, 2023, 2024)
 YEAR = 2024
 
 
-def download_gzip_and_write_to_json(file_name):
-    if os.path.isfile(f"{file_name}.json"):
+def download_gzip_and_write_to_file(file_name, format):
+    if os.path.isfile(f"{file_name}.{format}"):
         return False
 
-    remote_file = f"{S3_BUCKET_URL}/{file_name}.json.gz"
+    remote_file = f"{S3_BUCKET_URL}/{file_name}.{format}.gz"
     response = requests.get(remote_file, stream=True)
 
     if response.status_code == 200:
         gzip_bytes = BytesIO(response.content)
         with gzip.GzipFile(fileobj=gzip_bytes, mode="rb") as gzipped_file:
-            with open(f"{LOCAL_DIR_PREFIX}/{file_name}.json", "wb") as output_file:
+            with open(f"{LOCAL_DIR_PREFIX}/{file_name}.{format}", "wb") as output_file:
                 shutil.copyfileobj(gzipped_file, output_file)
-            print(f"{file_name}.json written")
+            print(f"{file_name}.{format} written")
         return True
     elif response.status_code == 404:
         # Ignore
@@ -49,7 +49,19 @@ def download_esports_files():
 
     esports_data_files = ["leagues", "tournaments", "players", "teams", "mapping_data"]
     for file_name in esports_data_files:
-        download_gzip_and_write_to_json(f"{directory}/{file_name}")
+        download_gzip_and_write_to_file(f"{directory}/{file_name}", "json")
+
+
+def download_fandom_data():
+    directory = "fandom"
+
+    local_directory = f"{LOCAL_DIR_PREFIX}/{directory}"
+    if not os.path.exists(local_directory):
+        os.makedirs(local_directory)
+
+    file_names = ["valorant_esports_pages", "valorant_pages"]
+    for file_name in file_names:
+        download_gzip_and_write_to_file(f"{directory}/{file_name}", "xml")
 
 
 def download_games():
@@ -68,7 +80,7 @@ def download_games():
     for esports_game in mappings_data:
         s3_game_file = f"{LEAGUE}/games/{YEAR}/{esports_game['platformGameId']}"
 
-        response = download_gzip_and_write_to_json(s3_game_file)
+        response = download_gzip_and_write_to_file(s3_game_file, "json")
 
         if response:
             game_counter += 1
@@ -79,5 +91,6 @@ def download_games():
 
 
 if __name__ == "__main__":
+    # download_fandom_data()
     download_esports_files()
     download_games()

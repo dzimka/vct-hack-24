@@ -2,6 +2,7 @@ import json
 from typing import Any, Dict, List
 
 import polars as pl
+from polars.exceptions import ComputeError
 from pydantic import BaseModel
 
 
@@ -25,15 +26,19 @@ def get_game_mappings(mapping_file: str) -> List[GameMapping]:
     with open(mapping_file, "r") as mf:
         maps = json.load(mf)
         for m in maps:
-            game_mappings.append(
-                GameMapping(
-                    platform_game_id=m["platformGameId"],
-                    esports_game_id=int(m["esportsGameId"]),
-                    tournament_id=int(m["tournamentId"]),
-                    team_mapping={int(k): int(v) for k, v in m["teamMapping"].items()},
-                    participant_mapping={int(k): int(v) for k, v in m["participantMapping"].items()},
+            try:
+                game_mappings.append(
+                    GameMapping(
+                        platform_game_id=m["platformGameId"],
+                        esports_game_id=int(m["esportsGameId"]),
+                        tournament_id=int(m["tournamentId"]),
+                        team_mapping={int(k): int(v) for k, v in m["teamMapping"].items()},
+                        participant_mapping={int(k): int(v) for k, v in m["participantMapping"].items()},
+                    )
                 )
-            )
+            except ValueError as e:
+                print(f"Invalid mapping record: {m}\n{e}")
+                print("Skipping...")
     return game_mappings
 
 
@@ -115,4 +120,61 @@ def get_game_stats(events: List[GameEvent], mapping: GameMapping) -> pl.DataFram
         data=damage_stats,
         schema_overrides={"tournament_id": pl.UInt64, "esports_game_id": pl.UInt64, "player_id": pl.UInt64},
     )
-    return rounds_df.join(damage_df, on=["round_num", "player_id"], how="inner")
+    try:
+        res = rounds_df.join(damage_df, on=["round_num", "player_id"], how="inner")
+    except ComputeError as ce:
+        print(rounds_df)
+        print(damage_df)
+        raise ValueError("Bad game data. Could not join dataframes.") from ce
+    return res
+
+
+def get_fixture_data(data_dir: str) -> pl.DataFrame:
+    # leagues
+    leagues = pl.read_json(f"{data_dir}/esports-data/leagues.json")
+    leagues = leagues.select(
+        pl.col("league_id").cast(pl.UInt64),
+        pl.col("name").alias("league_name"),
+        pl.col("region").alias("league_region"),
+    )
+    # tournaments
+    tournaments = pl.read_json(f"{data_dir}/esports-data/tournaments.json")
+    tournaments = tournaments.select(
+        pl.col("id").cast(pl.UInt64).alias("tournament_id"),
+        pl.col("league_id").cast(pl.UInt64),
+        pl.col("name").alias("tournament_name"),
+        pl.col("status").alias("tournament_status"),
+        pl.col("time_zone").alias("tournament_tz"),
+    )
+    # teams
+    teams = pl.read_json(f"{data_dir}/esports-data/teams.json")
+    teams = (
+        teams.select(
+            pl.col("id").cast(pl.UInt64).alias("team_id"),
+            pl.col("home_league_id").cast(pl.UInt64).alias("league_id"),
+            pl.col("name").alias("team_name"),
+        )
+        .group_by(["league_id", "team_id"])
+        .agg(pl.col("team_name").first())
+    )
+    # players
+    players = pl.read_json(f"{data_dir}/esports-data/players.json")
+    players = (
+        players.select(
+            pl.col("id").cast(pl.UInt64).alias("player_id"),
+            pl.col("home_team_id").cast(pl.UInt64).alias("team_id"),
+            pl.col("handle").alias("player_handle"),
+            (pl.col("first_name") + " " + pl.col("last_name")).alias("player_name"),
+            pl.when(pl.col("status") == "active").then(pl.lit(True)).otherwise(pl.lit(False)).alias("player_is_active"),
+            # pl.col("created_at").str.to_datetime().alias("player_created"),
+            # pl.col("updated_at").str.to_datetime().alias("player_updated"),
+        )
+        .group_by(["player_id", "team_id", "player_handle", "player_name", "player_is_active"])
+        .agg(pl.all())
+    )
+    fixture_data = (
+        leagues.join(tournaments, on="league_id", how="left")
+        .join(teams, on="league_id", how="inner")
+        .join(players, on="team_id", how="inner")
+    )
+    return fixture_data
