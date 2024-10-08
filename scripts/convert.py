@@ -1,30 +1,31 @@
-import os
-import pathlib
-
 import polars as pl
+from dotenv import load_dotenv
 
-FOLDER = "game-changers/esports-data"
-INPUT_DIR = "data/raw"
-OUTPUT_DIR = "data/parquet"
+from helpers.parsers import get_fixture_data
+from helpers.storage import get_storage_options
 
+RAW_DIR = "data/raw"
+DELTA_DIR = "data/delta"
 
-def convert_esports_data(league: str = "game-changers"):
-    input_directory = f"{INPUT_DIR}/{league}/esports-data"
-    output_directory = f"{OUTPUT_DIR}/{league}/esports-data"
-
-    esports_data_files = ["leagues", "tournaments", "players", "teams", "mapping_data"]
-
-    for obj_name in esports_data_files:
-        # read JSON
-        df = pl.read_json(f"{input_directory}/{obj_name}.json")
-
-        # write to Parquet
-        parquet_path: pathlib.Path = f"{output_directory}/{obj_name}"
-
-        if not os.path.exists(parquet_path):
-            os.makedirs(parquet_path)
-
-        df.write_parquet(parquet_path + "/" + "data.parquet")
+LEAGUES = ["game-changers", "vct-international", "vct-challengers"]
 
 
-convert_esports_data()
+def convert_region_data():
+    all_players = pl.DataFrame()
+    for league in LEAGUES:
+        players_in_league = get_fixture_data(f"{RAW_DIR}/{league}").select("league_region", "player_id").unique()
+        all_players = pl.concat([all_players, players_in_league], how="vertical")
+    storage_options = get_storage_options()
+    bucket = storage_options.pop("bucket")
+    table_path = f"{bucket}/{DELTA_DIR}/player_region"
+    all_players.write_delta(table_path, storage_options=storage_options)
+
+
+def main():
+    load_dotenv()
+    convert_region_data()
+    print("Done!")
+
+
+if __name__ == "__main__":
+    main()

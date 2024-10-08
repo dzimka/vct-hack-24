@@ -4,37 +4,40 @@ from typing import List
 
 import polars as pl
 from llama_index.core.tools import FunctionTool
-from polars import LazyFrame
 
-from helpers.parsers import get_fixture_data
 from helpers.storage import get_storage_options
 
 RAW_DIR = "data/raw"
 DELTA_DIR = "data/delta"
 STATS_DIR = f"{DELTA_DIR}/stats"
+REGIONS_DIR = f"{DELTA_DIR}/player_region"
 
 LEAGUES = ["game-changers", "vct-international"]
 YEARS = [2024]
 
 
 @cache
-def _scan_data(path: str) -> LazyFrame:
+def scan_game_data() -> pl.LazyFrame:
     storage_options = get_storage_options()
     source = "local"
     if storage_options:
         source = storage_options.pop("bucket")
-    print(f"reading from {source} table...")
     table_path = f"{source}/{STATS_DIR}" if source != "local" else STATS_DIR
+    print(f"reading game data from {table_path} table...")
     return pl.scan_delta(table_path, storage_options=storage_options)
 
 
 @cache
-def get_players_metadata() -> pl.DataFrame:
-    all_players = pl.DataFrame()
-    for league in LEAGUES:
-        players_in_league = get_fixture_data(f"{RAW_DIR}/{league}").select("league_region", "player_id").unique()
-        all_players = pl.concat([all_players, players_in_league], how="vertical")
-    return all_players.select("league_region", "player_id").unique()
+def read_players_regions() -> pl.DataFrame:
+    storage_options = get_storage_options()
+    source = storage_options.pop("bucket")
+    table_path = f"{source}/{REGIONS_DIR}"
+    print(f"reading player region data from {table_path} table...")
+    return (
+        pl.read_delta(table_path, storage_options=storage_options)
+        .select("league_region", pl.col("player_id").cast(pl.UInt64))
+        .unique()
+    )
 
 
 @cache
@@ -50,7 +53,7 @@ def get_players_in_league(league: str) -> pl.DataFrame:
     Returns:
         pl.DataFrame: A DataFrame containing the players in the specified league.
     """
-    players = _scan_data(STATS_DIR)
+    players = scan_game_data()
     query = players.filter(pl.col("league_alias") == league).select("player_id").unique()
     return query.collect()
 
@@ -66,7 +69,7 @@ def get_players_region(player_ids: List[int]) -> pl.DataFrame:
 
     """
     players_list = pl.DataFrame(player_ids, schema={"player_id": pl.UInt64})
-    return players_list.join(get_players_metadata(), on="player_id", how="left")
+    return players_list.join(read_players_regions(), on="player_id", how="left")
 
 
 def get_random_players(league: str, num_players: int) -> List[int]:
@@ -113,7 +116,7 @@ def get_player_stats(player_ids: List[int], league: str) -> pl.DataFrame:
     Returns:
         pl.DataFrame: A DataFrame containing the players' statistics.
     """
-    player_stats = _scan_data(STATS_DIR)
+    player_stats = scan_game_data()
     query = player_stats.filter((pl.col("league_alias") == league) & pl.col("player_id").is_in(player_ids)).select(
         "year",
         "esports_game_id",
@@ -140,9 +143,9 @@ def initialize_tools() -> List[FunctionTool]:
 
 
 def warm_up_tools():
-    print("warming up tools...", end="", flush=True)
-    _ = get_players_metadata()
-    _ = _scan_data(STATS_DIR)
+    print("warming up tools:", flush=True)
+    _ = read_players_regions()
+    _ = scan_game_data()
     for league in LEAGUES:
         _ = get_players_in_league(league)
-    print("done!")
+    print("------done------")
