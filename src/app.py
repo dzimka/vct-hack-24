@@ -10,9 +10,14 @@ would be effective in a competitive match.
 """
 
 manager: TeamManager = None
+num_calls: int = 100
 
 
 def run_task(prompt: str) -> str:
+    global num_calls
+    num_calls -= 1
+    if num_calls <= 0:
+        return "Number of runs exceeded. Please contact developer."
     if manager:
         return manager.make_team(prompt)
     return "Cannot execute prompt. Please try again later."
