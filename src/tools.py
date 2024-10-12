@@ -9,10 +9,10 @@ from helpers.storage import get_storage_options
 
 RAW_DIR = "data/raw"
 DELTA_DIR = "data/delta"
-STATS_DIR = f"{DELTA_DIR}/stats"
+STATS_DIR = f"{DELTA_DIR}/game_stats"
 REGIONS_DIR = f"{DELTA_DIR}/player_region"
 
-LEAGUES = ["game-changers", "vct-international"]
+LEAGUES = ["vct-challengers", "game-changers", "vct-international"]
 YEARS = [2024]
 
 

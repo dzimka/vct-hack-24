@@ -8,7 +8,7 @@ RAW_DIR = "data/raw"
 DELTA_DIR = "data/delta"
 STATS_DIR = f"{DELTA_DIR}/stats"
 
-LEAGUES = ["game-changers", "vct-international"]
+LEAGUES = ["vct-challengers", "game-changers", "vct-international"]
 YEARS = [2024]
 
 
@@ -24,7 +24,7 @@ def write_to_table(game_summary: pl.DataFrame, league, year):
         table_path,
         mode="append",
         storage_options=storage_options,
-        delta_write_options={"partition_by": ["league_alias", "player_id", "year"]},
+        delta_write_options={"partition_by": ["league_alias", "year"]},
     )
 
 
