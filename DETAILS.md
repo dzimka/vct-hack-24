@@ -1,8 +1,8 @@
-# Reasononing Agent for the Team Composition Task
+# Reasoning Agent for the Team Composition Task
 
 ## Intro
 
-In this application I explored how to build a reasoning agent using Amazon Bedrock. The goal was to build a simple application with a chat interface that can compose a team for the Valorant game. The app needs to take into account the constraints specified in the prompt and assign team roles based on the historical performance of each player. The organizers of this hackathon supplied a lot of data in the form of JSON files and hinted they expected a RAG architecture to be implemented. The goal was to balance the cost, complexity and the quality of the solution, so things like fine-tuning the model and brining third-party models were discouraged.
+In this Python application I explored how to build a reasoning agent using [Amazon Bedrock](https://aws.amazon.com/ai/generative-ai). The goal was to build a simple application with a chat interface that can compose a team for the Valorant game. The app needs to take into account the constraints specified in the prompt and assign team roles based on the historical performance of each player. The organizers of this hackathon supplied a lot of data in the form of JSON files and hinted they expected a RAG architecture to be implemented. The goal was to balance the cost, complexity and the quality of the solution, so things like fine-tuning the model and brining third-party models were discouraged.
 
 I have tested a few approaches and decided to go with the following architecture:
 
@@ -86,8 +86,26 @@ Game data is the detailed data about each game. It is huge, so it took me hours 
 
 I extracted and used the following event types to form this stats table: `configuration` and `damage`. I then grouped the data by player and team mode, so that the column `team_mode` has values `A` and `D` ("attacking" and "defending" accordingly). I've also included some additional fields such as `league_id`, `year`, `tournament_id` and `esports_game_id` for some additional filtering in the future. I have later concatenated the data from all files for all leagues and years into a single compacted table and put it to my S3 bucket.
 
-> In theory, I could have used much more information extracted
+> In theory, I could have used much more information extracted from the game files. However, my first tests showed that even using the events above, the LLM is already doing great to achieve the goal. At the same time, parsing more events would require much more effort to analyze and integrate it. Since "done is better than perfect", I decided to not add more events to my solution.
 
-### Annotating Data
+### Annotating Data and Handling Errors
 
-## Evaluating Results
+When the agent uses tools to collect the data and provide it to LLM it uses some additional tricks to expand the datasets and give models some hints. For example, when the model is requesting a shortlist of players for the "VCT International" league, my tool only accepts the specific list of values as arguments. If the argument provided by an LLM is not acceptable, I raise the `ValueError` with the description below to give LLM and opportunity to recover:
+
+```python
+    if league not in LEAGUES:
+        raise ValueError(f"Invalid league: {league}. Choices are: {', '.join(LEAGUES)}")
+```
+
+Similarly, I provide the following exception handling to instruct the model to not retry if there is no data - a technique to save some costs:
+
+```python
+    except Exception as e:
+        raise RuntimeWarning("The dataset is broken. Do not retry and instruct the user the fix the dataset.")
+```
+
+Also, I found it helpful for the model to provide some data annotations. For example, changing column values `A` and `D` to `attacking team` and `defending team` accordingly. This gives the model some additional context to reason about the game play data. This turns out to be a very powerful technique that can be used in the production implementation. For example, the window function may calculate the trend of some numeric values and annotate each record based on that.
+
+## Summary
+
+Using `Amazon Bedrock` in combination with other services makes it very easy to create and deploy a reasoning agent. Overall, the RAG architecture that combined retrieval tools based on the analytical engine (Polars) with the reasoning agent from LlamaIndex showed exciting results. I tested it with various LLM models and the results varied. For instance, Amazon Titan didn't perform very well, while many larger instructional models provided good results. I decided to use `Mistral Large 2` because it is one of the latest models that already has a lot of recent knowledge (including about the game) and it also performed very consistently on various testing prompts.
