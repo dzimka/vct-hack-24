@@ -16,5 +16,7 @@ PYTHONPATH=src python scripts/process.py
 ## Running the App
 
 ```sh
-PYTHONPATH=src python src/app.py
+python src/app.py
 ```
+
+Read the [details](DETAILS.md).
