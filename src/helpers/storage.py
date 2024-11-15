@@ -3,7 +3,7 @@ import os
 
 def get_storage_options():
     bucket = os.environ.get("AWS_S3_BUCKET")
-    region = os.environ.get("AWS_REGION")
+    region = os.environ.get("AWS_S3_BUCKET_REGION")
     key_id = os.environ.get("AWS_ACCESS_KEY_ID")
     access_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
     if bucket:

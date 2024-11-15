@@ -15,11 +15,15 @@ DEFAULT_REGION = "us-west-2"
 class TeamManager:
     agent: ReActAgent
     tools: List[FunctionTool]
+    model: str
+    region: str
 
     def __init__(
         self, model: str = DEFAULT_MODEL, context_size: int = DEFAULT_CONTEXT_SIZE, region: str = DEFAULT_REGION
     ):
         # init global settings for LlamaIndex via Bedrock
+        self.model = model
+        self.region = region
         Settings.llm = Bedrock(
             model=model,
             region_name=region,

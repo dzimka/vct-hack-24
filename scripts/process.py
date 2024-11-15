@@ -1,5 +1,4 @@
 import polars as pl
-from dotenv import load_dotenv
 
 from helpers.parsers import GameMapping, get_game_events, get_game_mappings, get_game_stats
 from helpers.storage import get_storage_options
@@ -8,7 +7,8 @@ RAW_DIR = "data/raw"
 DELTA_DIR = "data/delta"
 STATS_DIR = f"{DELTA_DIR}/stats"
 
-LEAGUES = ["vct-challengers", "game-changers", "vct-international"]
+# LEAGUES = ["vct-challengers", "game-changers", "vct-international"]
+LEAGUES = ["game-changers"]
 YEARS = [2024]
 
 
@@ -81,5 +81,5 @@ def main():
 
 
 if __name__ == "__main__":
-    load_dotenv()
+    # load_dotenv()
     main()
